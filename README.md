@@ -24,6 +24,7 @@
 ```
 ### Примерный вид version.go
 
+
 ```go
 package utils
 
