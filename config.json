@@ -7,7 +7,9 @@
     "company": "CYANIDE",
     "main": "C:\\Users\\CYANIDE\\Desktop\\PROJECTS\\kobus-pulse-main\\main.go",
     "versionFile": "C:\\Users\\CYANIDE\\Desktop\\PROJECTS\\kobus-pulse-main\\utils\\version.go",
-    "buildDir": "C:\\Users\\CYANIDE\\Desktop\\PROJECTS\\APP_BUILDER\\dist",
+    "distrDir": "C:\\Users\\CYANIDE\\Desktop\\PROJECTS\\APP_BUILDER\\dist",
+    "buildDir": "C:\\Users\\CYANIDE\\Desktop\\PROJECTS\\APP_BUILDER\\build",
+    "sevenZip": "C:\\Program Files\\7-Zip\\7z.exe",
     "version": "1.1.3"
   }
 }
