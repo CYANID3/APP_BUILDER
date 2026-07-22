@@ -104,10 +104,13 @@ if (-not (Test-Path $ProjectPath)) {
     Write-Error "Папка проекта не найдена: $ProjectPath"
     exit 1
 }
+# ── Заголовок ────────────────────────────────────────────────────────────────
+Write-Host ""
+Write-Box @("GO-TOOLS  //  App Builder") -Color Magenta
+Write-Host ""
 
 # ── Заголовок ────────────────────────────────────────────────────────────────
 Set-Location $ProjectPath
-Write-Host ""
 Write-Box @(
     "Проект  : $Project"
     "Папка   : $ProjectPath"
