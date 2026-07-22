@@ -7,36 +7,67 @@ param(
 $ErrorActionPreference = "Stop"
 $BuilderRoot = $PSScriptRoot
 
+# ── Визуальная ширина строки (кириллица = 2) ─────────────────────────────────
+function Get-DisplayLength([string]$str) {
+    $len = 0
+    foreach ($char in $str.ToCharArray()) {
+        if ([int]$char -gt 127) { $len += 2 } else { $len += 1 }
+    }
+    return $len
+}
+
+# ── Рамка ────────────────────────────────────────────────────────────────────
+function Write-Box {
+    param([string[]]$Lines, [string]$Color = "Cyan")
+
+    $width = $Host.UI.RawUI.WindowSize.Width - 2
+    $hr    = "─" * $width
+
+    Write-Host "┌$hr┐" -ForegroundColor $Color
+    foreach ($line in $Lines) {
+        # Обрезаем если не влезает
+        $maxText = $width - 4
+        if ($line.Length -gt $maxText) {
+            $line = $line.Substring(0, $maxText - 3) + "..."
+        }
+        $pad = " " * ($maxText - $line.Length)
+        Write-Host "│  $line$pad  │" -ForegroundColor $Color
+    }
+    Write-Host "└$hr┘" -ForegroundColor $Color
+}
 # ── Глобальный конфиг ────────────────────────────────────────────────────────
 $globalCfgPath = "$BuilderRoot\config.json"
 if (-not (Test-Path $globalCfgPath)) {
     Write-Error "Не найден глобальный конфиг: $globalCfgPath"
     exit 1
 }
-$global = Get-Content $globalCfgPath -Raw | ConvertFrom-Json
-
+$global    = Get-Content $globalCfgPath -Raw | ConvertFrom-Json
 $RceditExe = "$BuilderRoot\$($global.rceditPath)"
 $IconsDir  = "$BuilderRoot\$($global.iconsDir)"
 
 # ── Список проектов если не указан ───────────────────────────────────────────
 if ($Project -eq "") {
-    Write-Host "Доступные проекты:" -ForegroundColor Cyan
-    Get-ChildItem "$BuilderRoot\*.json" | ForEach-Object {
-        Write-Host "  $($_.BaseName)" -ForegroundColor Yellow
+    Write-Host ""
+    Write-Box @("APP_BUILDER") -Color Magenta
+    Write-Host ""
+    Write-Host "  Доступные проекты:" -ForegroundColor Cyan
+    Get-ChildItem "$BuilderRoot\projects\*.json" | ForEach-Object {
+        Write-Host "    • $($_.BaseName)" -ForegroundColor Yellow
     }
     Write-Host ""
-    Write-Host "Использование:" -ForegroundColor Gray
-    Write-Host "  .\build.ps1 -Project <имя> -Version <версия> [-SkipTests]" -ForegroundColor Gray
+    Write-Host "  Использование:" -ForegroundColor Gray
+    Write-Host "    .\build.ps1 -Project <имя> -Version <версия> [-SkipTests]" -ForegroundColor Gray
+    Write-Host ""
     exit 0
 }
 
 if ($Version -eq "") {
-    Write-Error "Укажите версию: -Version 0.01"
+    Write-Error "Укажите версию: -Version 0.15"
     exit 1
 }
 
 # ── Конфиг проекта ───────────────────────────────────────────────────────────
-$cfgPath = "$BuilderRoot\$Project.json"
+$cfgPath = "$BuilderRoot\projects\$Project.json"
 if (-not (Test-Path $cfgPath)) {
     Write-Error "Конфиг проекта не найден: $cfgPath"
     exit 1
@@ -63,10 +94,10 @@ function Sub([string]$str) {
 }
 
 # ── Итоговые пути ────────────────────────────────────────────────────────────
-$ProjectPath  = Sub $cfg.projectDir
-$BinaryPath   = "$ProjectPath\$($cfg.binaryName)"
-$IconPath     = "$IconsDir\$($cfg.icon)"
-$FileVersion  = Sub $cfg.versionFormat
+$ProjectPath = Sub $cfg.projectDir
+$BinaryPath  = "$ProjectPath\$($cfg.binaryName)"
+$IconPath    = "$IconsDir\$($cfg.icon)"
+$FileVersion = Sub $cfg.versionFormat
 
 # ── Проверки ─────────────────────────────────────────────────────────────────
 if (-not (Test-Path $ProjectPath)) {
@@ -77,30 +108,48 @@ if (-not (Test-Path $ProjectPath)) {
 # ── Заголовок ────────────────────────────────────────────────────────────────
 Set-Location $ProjectPath
 Write-Host ""
-Write-Host "[Проект]  $Project"       -ForegroundColor Cyan
-Write-Host "  Папка   : $ProjectPath"   -ForegroundColor Gray
-Write-Host "  Версия  : $Version  →  $FileVersion" -ForegroundColor Gray
-Write-Host "  Тесты   : $(if ($SkipTests) { 'пропущены' } else { 'включены' })" -ForegroundColor Gray
+Write-Box @(
+    "Проект  : $Project"
+    "Папка   : $ProjectPath"
+    "Версия  : $Version  →  $FileVersion"
+    "Тесты   : $(if ($SkipTests) { 'пропущены' } else { 'включены' })"
+) -Color Cyan
 Write-Host ""
 
-# ── 1. Тесты ─────────────────────────────────────────────────────────────────
-if (-not $SkipTests -and $cfg.testCmd) {
-    Write-Host "[ 1/3 ] Testing..." -ForegroundColor Cyan
-    Invoke-Expression (Sub $cfg.testCmd)
-    if ($LASTEXITCODE -ne 0) { Write-Error "[$Project] Тесты упали - сборка отменена"; exit 1 }
-    Write-Host ">> OK" -ForegroundColor Green
+# ── Считаем шаги динамически ─────────────────────────────────────────────────
+$steps     = @()
+$hasTests  = (-not $SkipTests -and $cfg.testCmd)
+if ($hasTests)  { $steps += "Tests"     }
+$steps += "Build"
+$steps += "Resources"
+$totalSteps = $steps.Count
+
+$step = 0
+function Write-Step([string]$label) {
+    $script:step++
+    Write-Host ""
+    Write-Host "[ $($script:step)/$totalSteps ]  $label" -ForegroundColor DarkCyan
     Write-Host ""
 }
 
+# ── 1. Тесты (если есть) ─────────────────────────────────────────────────────
+if ($hasTests) {
+    Write-Step "Testing..."
+    Invoke-Expression (Sub $cfg.testCmd)
+    if ($LASTEXITCODE -ne 0) { Write-Error "[$Project] Тесты упали — сборка отменена"; exit 1 }
+    Write-Host ""
+    Write-Host " ✔  Tests passed" -ForegroundColor Green
+}
+
 # ── 2. Сборка ────────────────────────────────────────────────────────────────
-Write-Host "[ 2/3 ] Building..." -ForegroundColor Cyan
-Invoke-Expression (Sub $cfg.buildCmd)
+Write-Step "Building..."
+$buildCmd = (Sub $cfg.buildCmd) -replace "go build", "go build -v"
+Invoke-Expression $buildCmd
 if ($LASTEXITCODE -ne 0) { Write-Error "[$Project] Build failed"; exit 1 }
-Write-Host ">> OK" -ForegroundColor Green
-Write-Host ""
+Write-Host " ✔  Build complete" -ForegroundColor Green
 
 # ── 3. Ресурсы ───────────────────────────────────────────────────────────────
-Write-Host "[ 3/3 ] Applying resources..." -ForegroundColor Cyan
+Write-Step "Applying resources..."
 if (Test-Path $RceditExe) {
     $rceditArgs  = @($BinaryPath)
     $rceditArgs += "--set-file-version",    $FileVersion
@@ -111,12 +160,13 @@ if (Test-Path $RceditExe) {
     }
     & $RceditExe @rceditArgs
     if ($LASTEXITCODE -ne 0) { Write-Error "[$Project] rcedit failed"; exit 1 }
-    Write-Host ">> OK" -ForegroundColor Green
+    Write-Host " ✔  Icon applied" -ForegroundColor Green
+    Write-Host " ✔  Version info applied" -ForegroundColor Green
+    Write-Host " ✔  Metadata applied" -ForegroundColor Green
 } else {
-    Write-Host ">> rcedit не найден, пропускаем" -ForegroundColor Yellow
+    Write-Host " ⚠  rcedit не найден, пропускаем" -ForegroundColor Yellow
 }
 
 # ── Готово ───────────────────────────────────────────────────────────────────
-Write-Host ""
-Write-Host ">> Done: $BinaryPath" -ForegroundColor Yellow
+Write-Box @("✔  Done: $BinaryPath") -Color Yellow
 Write-Host ""
