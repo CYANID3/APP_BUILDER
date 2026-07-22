@@ -1,0 +1,422 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<style>
+:root {
+  --color-background-primary: #ffffff;
+  --color-background-secondary: #f6f6f6;
+  --color-background-tertiary: #eeeeee;
+
+  --color-text-primary: #1a1a1a;
+  --color-text-secondary: #555;
+  --color-text-tertiary: #888;
+
+  --color-border-secondary: #d0d0d0;
+  --color-border-tertiary: #e0e0e0;
+
+  --border-radius-md: 6px;
+  --border-radius-lg: 10px;
+
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  height: 100%;
+  width: 100%;
+  font-family: var(--font-mono);
+  background: var(--color-background-secondary);
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+}
+
+/* MAIN LAYOUT */
+.wrap {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 12px;
+  gap: 12px;
+  min-height: 0;
+}
+
+/* DROPZONE */
+.drop-zone {
+  border: 1.5px dashed var(--color-border-secondary);
+  border-radius: var(--border-radius-lg);
+  padding: 40px;
+  text-align: center;
+  background: var(--color-background-primary);
+  cursor: pointer;
+}
+
+.drop-zone.active {
+  border-color: #185FA5;
+}
+
+/* FILE INFO */
+.file-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  background: var(--color-background-primary);
+  border: 1px solid var(--color-border-tertiary);
+  border-radius: var(--border-radius-md);
+}
+
+.file-info-meta {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+.reset-link {
+  margin-left: auto;
+  font-size: 12px;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+/* TABS */
+.tab-row {
+  display: flex;
+  gap: 6px;
+}
+
+.tab {
+  padding: 6px 12px;
+  border: 1px solid transparent;
+  border-radius: var(--border-radius-md);
+  cursor: pointer;
+}
+
+.tab.active {
+  background: var(--color-background-primary);
+  border-color: var(--color-border-tertiary);
+}
+
+/* CONTENT */
+#editor {
+  flex: 1;
+  display: none;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.tab-content {
+  display: none;
+  flex: 1;
+  overflow: auto;
+}
+
+.tab-content.active {
+  display: block;
+}
+
+/* SECTION */
+.section {
+  background: var(--color-background-primary);
+  border: 1px solid var(--color-border-tertiary);
+  border-radius: var(--border-radius-lg);
+  padding: 14px;
+  margin-bottom: 10px;
+}
+
+.section-header {
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+  text-transform: uppercase;
+  margin-bottom: 10px;
+}
+
+/* FIELDS */
+.field-row {
+  display: grid;
+  grid-template-columns: 170px 1fr;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.field-label {
+  font-size: 13px;
+  color: var(--color-text-secondary);
+}
+
+.field-input {
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--color-border-tertiary);
+  border-radius: var(--border-radius-md);
+  font-family: var(--font-mono);
+}
+
+/* BUTTONS */
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.btn {
+  height: 34px;
+  padding: 0 12px;
+  border-radius: var(--border-radius-md);
+  border: 1px solid var(--color-border-secondary);
+  background: transparent;
+  cursor: pointer;
+}
+
+.btn.primary {
+  background: #185FA5;
+  color: white;
+}
+
+/* ===== CMD BAR (ВСЕГДА ВИДНА) ===== */
+.cmd-bar {
+  position: sticky;
+  bottom: 0;
+
+  background: var(--color-background-primary);
+  border-top: 1px solid var(--color-border-tertiary);
+
+  padding: 10px;
+}
+
+.cmd-label {
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+  margin-bottom: 6px;
+}
+
+.cmd-box {
+  background: #2c2c2a;
+  color: #d3d1c7;
+  padding: 10px;
+  border-radius: var(--border-radius-md);
+  font-size: 12px;
+  overflow-x: auto;
+  white-space: pre;
+}
+</style>
+</head>
+
+<body>
+
+<div class="wrap">
+
+  <!-- DROP -->
+  <div id="drop-zone" class="drop-zone">
+    ⬜ Перетащите .exe файл сюда
+    <input type="file" id="file-input" hidden>
+  </div>
+
+  <!-- FILE INFO -->
+  <div class="file-info">
+    <div>
+      <div id="fname"></div>
+      <div class="file-info-meta" id="fmeta"></div>
+    </div>
+    <span class="reset-link" onclick="resetEditor()">сброс</span>
+  </div>
+
+  <!-- TABS -->
+  <div class="tab-row">
+    <div class="tab active" onclick="switchTab('version')">Версия</div>
+    <div class="tab" onclick="switchTab('strings')">Строки</div>
+    <div class="tab" onclick="switchTab('icon')">Иконка</div>
+  </div>
+
+  <!-- EDITOR -->
+  <div id="editor">
+
+    <!-- VERSION -->
+    <div id="tab-version" class="tab-content active">
+      <div class="section">
+        <div class="section-header">Версия файла</div>
+
+        <div class="field-row">
+          <div class="field-label">FileVersion</div>
+          <input class="field-input" id="file-version" placeholder="1.0.0.0" oninput="regen()">
+        </div>
+
+        <div class="field-row">
+          <div class="field-label">ProductVersion</div>
+          <input class="field-input" id="product-version" placeholder="1.0.0.0" oninput="regen()">
+        </div>
+
+      </div>
+    </div>
+
+    <!-- STRINGS -->
+    <div id="tab-strings" class="tab-content">
+      <div class="section">
+        <div class="section-header">Строковые ресурсы</div>
+
+        <div class="field-row">
+          <div class="field-label">FileDescription</div>
+          <input class="field-input" id="file-desc" placeholder="Описание приложения" oninput="regen()">
+        </div>
+
+        <div class="field-row">
+          <div class="field-label">ProductName</div>
+          <input class="field-input" id="product-name" placeholder="Имя приложения" oninput="regen()">
+        </div>
+
+        <div class="field-row">
+          <div class="field-label">CompanyName</div>
+          <input class="field-input" id="company-name" placeholder="Компания" oninput="regen()">
+        </div>
+
+        <div class="field-row">
+          <div class="field-label">LegalCopyright</div>
+          <input class="field-input" id="legal-copyright" placeholder="© 2026 Компания" oninput="regen()">
+        </div>
+
+        <div class="field-row">
+          <div class="field-label">OriginalFilename</div>
+          <input class="field-input" id="original-filename" placeholder="app.exe" oninput="regen()">
+        </div>
+
+        <div class="field-row">
+          <div class="field-label">InternalName</div>
+          <input class="field-input" id="internal-name" placeholder="app" oninput="regen()">
+        </div>
+
+        <div class="field-row">
+          <div class="field-label">Comments</div>
+          <input class="field-input" id="comments" placeholder="Комментарий" oninput="regen()">
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ICON -->
+    <div id="tab-icon" class="tab-content">
+      <div class="section">
+        <div class="section-header">Иконка</div>
+
+        <button class="btn" onclick="document.getElementById('icon-input').click()">Выбрать .ico</button>
+        <input type="file" id="icon-input" accept=".ico" hidden onchange="handleIcon(this)">
+        <span id="icon-name"></span>
+
+      </div>
+    </div>
+
+  </div>
+
+  <!-- CMD (ВСЕГДА ВИДЕН) -->
+  <div class="cmd-bar">
+    <div class="cmd-label">Команда rcedit</div>
+    <div class="cmd-box" id="cmd">./rcedit.exe</div>
+  </div>
+
+  <div class="actions">
+    <button class="btn" onclick="clearAll()">Сброс</button>
+    <button class="btn primary" onclick="copyCmd()">Копировать</button>
+  </div>
+
+</div>
+
+<script>
+let fileName = '';
+let iconPath = '';
+
+const dz = document.getElementById('drop-zone');
+
+['dragenter','dragover','dragleave','drop'].forEach(ev=>{
+  document.addEventListener(ev, e=>e.preventDefault(), false);
+});
+
+dz.addEventListener('dragover', ()=>dz.classList.add('active'));
+dz.addEventListener('dragleave', ()=>dz.classList.remove('active'));
+
+dz.addEventListener('drop', e=>{
+  dz.classList.remove('active');
+  const f = e.dataTransfer.files[0];
+  if(f) loadFile(f);
+});
+
+document.getElementById('file-input').addEventListener('change', e=>{
+  if(e.target.files[0]) loadFile(e.target.files[0]);
+});
+
+function loadFile(f){
+  fileName = f.name;
+  document.getElementById('fname').textContent = f.name;
+  document.getElementById('fmeta').textContent = f.size + ' bytes';
+  dz.style.display = 'none';
+  document.getElementById('editor').style.display = 'flex';
+  regen();
+}
+
+function regen(){
+  let cmd = `./rcedit.exe "${fileName}"`;
+
+  const flags = [
+    ['file-version',      '--set-file-version'],
+    ['product-version',   '--set-product-version'],
+    ['file-desc',         '--set-version-string "FileDescription"'],
+    ['product-name',      '--set-version-string "ProductName"'],
+    ['company-name',      '--set-version-string "CompanyName"'],
+    ['legal-copyright',   '--set-version-string "LegalCopyright"'],
+    ['original-filename', '--set-version-string "OriginalFilename"'],
+    ['internal-name',     '--set-version-string "InternalName"'],
+    ['comments',          '--set-version-string "Comments"'],
+  ];
+
+  flags.forEach(([id, flag]) => {
+    const val = document.getElementById(id).value;
+    if (val) cmd += ` ${flag} "${val}"`;
+  });
+
+  if(iconPath) cmd += ` --set-icon "${iconPath}"`;
+
+  document.getElementById('cmd').textContent = cmd;
+}
+
+function switchTab(t){
+  const tabs=['version','strings','icon'];
+  document.querySelectorAll('.tab').forEach((el,i)=>{
+    el.classList.toggle('active', tabs[i]===t);
+  });
+  document.querySelectorAll('.tab-content').forEach(c=>{
+    c.classList.toggle('active', c.id==='tab-'+t);
+  });
+}
+
+function handleIcon(input){
+  const f = input.files[0];
+  if(!f) return;
+  iconPath = f.name;
+  document.getElementById('icon-name').textContent = f.name;
+  regen();
+}
+
+function clearAll(){
+  document.querySelectorAll('input').forEach(i=>i.value='');
+  iconPath='';
+  regen();
+}
+
+function copyCmd(){
+  navigator.clipboard.writeText(document.getElementById('cmd').textContent);
+}
+
+function resetEditor(){
+  location.reload();
+}
+</script>
+
+</body>
+</html>

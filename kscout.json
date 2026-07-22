@@ -1,0 +1,16 @@
+{
+    "projectDir":    "C:\\Users\\CYANIDE\\Desktop\\Приложения\\KScout_{{version}}",
+    "binaryName":    "kscout.exe",
+    "icon":          "scout.ico",
+    "versionFormat": "{{build}}.{{patch}}.{{major}}.{{minor}}",
+    "buildCmd":      "go build -trimpath -ldflags=\"-s -w -X kscout/pkg/config.Version={{version}}\" -o \"{{binary}}\" .\\cmd\\kobusscout\\",
+    "testCmd":       "go test ./...",
+    "rcedit": {
+        "FileDescription":  "KScout (Kobus-Scout) - утилита для сбора версий ПО на сервере.",
+        "ProductName":      "KScout",
+        "CompanyName":      "CYANIDE",
+        "LegalCopyright":   "© 2026 CYANIDE",
+        "OriginalFilename": "kscout.exe",
+        "InternalName":     "kscout"
+    }
+}
