@@ -168,5 +168,6 @@ if (Test-Path $RceditExe) {
 }
 
 # ── Готово ───────────────────────────────────────────────────────────────────
+Write-Host ""
 Write-Box @("✔  Done: $BinaryPath") -Color Yellow
 Write-Host ""
