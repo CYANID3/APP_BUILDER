@@ -1,6 +1,7 @@
 param(
-    [string] $Project  = "",
-    [string] $Version  = "",
+    [string] $Project   = "",
+    [string] $Version   = "",
+    [string] $Output    = "",
     [switch] $SkipTests
 )
 
@@ -25,7 +26,6 @@ function Write-Box {
 
     Write-Host "┌$hr┐" -ForegroundColor $Color
     foreach ($line in $Lines) {
-        # Обрезаем если не влезает
         $maxText = $width - 4
         if ($line.Length -gt $maxText) {
             $line = $line.Substring(0, $maxText - 3) + "..."
@@ -35,6 +35,7 @@ function Write-Box {
     }
     Write-Host "└$hr┘" -ForegroundColor $Color
 }
+
 # ── Глобальный конфиг ────────────────────────────────────────────────────────
 $globalCfgPath = "$BuilderRoot\config.json"
 if (-not (Test-Path $globalCfgPath)) {
@@ -48,7 +49,7 @@ $IconsDir  = "$BuilderRoot\$($global.iconsDir)"
 # ── Список проектов если не указан ───────────────────────────────────────────
 if ($Project -eq "") {
     Write-Host ""
-    Write-Box @("APP_BUILDER") -Color Magenta
+    Write-Box @("GO-TOOLS  //  App Builder") -Color Magenta
     Write-Host ""
     Write-Host "  Доступные проекты:" -ForegroundColor Cyan
     Get-ChildItem "$BuilderRoot\projects\*.json" | ForEach-Object {
@@ -56,7 +57,7 @@ if ($Project -eq "") {
     }
     Write-Host ""
     Write-Host "  Использование:" -ForegroundColor Gray
-    Write-Host "    .\build.ps1 -Project <имя> -Version <версия> [-SkipTests]" -ForegroundColor Gray
+    Write-Host "    .\build.ps1 -Project <имя> -Version <версия> [-Output <путь>] [-SkipTests]" -ForegroundColor Gray
     Write-Host ""
     exit 0
 }
@@ -95,39 +96,52 @@ function Sub([string]$str) {
 
 # ── Итоговые пути ────────────────────────────────────────────────────────────
 $ProjectPath = Sub $cfg.projectDir
-$BinaryPath  = "$ProjectPath\$($cfg.binaryName)"
 $IconPath    = "$IconsDir\$($cfg.icon)"
 $FileVersion = Sub $cfg.versionFormat
+
+# Output: если указан — кладём туда, иначе в папку проекта
+if ($Output -ne "") {
+    if ((Split-Path $Output -Leaf) -notlike "*.exe") {
+        if (-not (Test-Path $Output)) { New-Item -ItemType Directory -Path $Output | Out-Null }
+        $BinaryPath = "$Output\$($cfg.binaryName)"
+    } else {
+        $dir = Split-Path $Output -Parent
+        if ($dir -and -not (Test-Path $dir)) { New-Item -ItemType Directory -Path $dir | Out-Null }
+        $BinaryPath = $Output
+    }
+} else {
+    $BinaryPath = "$ProjectPath\$($cfg.binaryName)"
+}
 
 # ── Проверки ─────────────────────────────────────────────────────────────────
 if (-not (Test-Path $ProjectPath)) {
     Write-Error "Папка проекта не найдена: $ProjectPath"
     exit 1
 }
-# ── Заголовок ────────────────────────────────────────────────────────────────
-Write-Host ""
-Write-Box @("GO-TOOLS  //  App Builder") -Color Magenta
-Write-Host ""
 
 # ── Заголовок ────────────────────────────────────────────────────────────────
 Set-Location $ProjectPath
+Write-Host ""
+Write-Box @("GO-TOOLS  //  App Builder") -Color Magenta
+Write-Host ""
 Write-Box @(
     "Проект  : $Project"
     "Папка   : $ProjectPath"
+    "Вывод   : $BinaryPath"
     "Версия  : $Version  →  $FileVersion"
     "Тесты   : $(if ($SkipTests) { 'пропущены' } else { 'включены' })"
 ) -Color Cyan
 Write-Host ""
 
 # ── Считаем шаги динамически ─────────────────────────────────────────────────
-$steps     = @()
-$hasTests  = (-not $SkipTests -and $cfg.testCmd)
-if ($hasTests)  { $steps += "Tests"     }
-$steps += "Build"
-$steps += "Resources"
+$hasTests   = (-not $SkipTests -and $cfg.testCmd)
+$steps      = @()
+if ($hasTests) { $steps += "Tests" }
+$steps     += "Build"
+$steps     += "Resources"
 $totalSteps = $steps.Count
+$step       = 0
 
-$step = 0
 function Write-Step([string]$label) {
     $script:step++
     Write-Host ""
@@ -149,6 +163,7 @@ Write-Step "Building..."
 $buildCmd = (Sub $cfg.buildCmd) -replace "go build", "go build -v"
 Invoke-Expression $buildCmd
 if ($LASTEXITCODE -ne 0) { Write-Error "[$Project] Build failed"; exit 1 }
+Write-Host ""
 Write-Host " ✔  Build complete" -ForegroundColor Green
 
 # ── 3. Ресурсы ───────────────────────────────────────────────────────────────
